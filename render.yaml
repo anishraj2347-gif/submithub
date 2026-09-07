@@ -11,13 +11,16 @@ databases:
     databaseName: submithub
     user: submithub
     plan: free
+    # Must match the web service: Render's internal database hostname only
+    # resolves within a single region.
+    region: oregon
 
 services:
   - type: web
     name: submithub
     runtime: node
     plan: free
-    region: singapore
+    region: oregon
     branch: main
     # Migrations run on every deploy; `migrate deploy` only applies pending
     # migrations and never resets data.
