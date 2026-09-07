@@ -1,0 +1,48 @@
+# Render Blueprint — provisions the web service and its Postgres together.
+#
+#   Render dashboard -> New -> Blueprint -> pick this repo.
+#
+# DATABASE_URL and AUTH_SECRET are filled in automatically. The three marked
+# `sync: false` must be set by hand in the dashboard, because they are secrets
+# or are only known once the service has a URL.
+
+databases:
+  - name: submithub-db
+    databaseName: submithub
+    user: submithub
+    plan: free
+
+services:
+  - type: web
+    name: submithub
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    # Migrations run on every deploy; `migrate deploy` only applies pending
+    # migrations and never resets data.
+    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npm run start
+    healthCheckPath: /signin
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: submithub-db
+          property: connectionString
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: NODE_VERSION
+        value: "22"
+      # Set these in the Render dashboard:
+      #   AUTH_URL             https://<your-service>.onrender.com
+      #   GOOGLE_CLIENT_ID     from Google Cloud
+      #   GOOGLE_CLIENT_SECRET from Google Cloud
+      - key: AUTH_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
