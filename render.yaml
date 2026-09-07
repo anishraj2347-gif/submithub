@@ -22,10 +22,11 @@ services:
     plan: free
     region: oregon
     branch: main
-    # Migrations run on every deploy; `migrate deploy` only applies pending
-    # migrations and never resets data.
-    buildCommand: npm ci && npx prisma generate && npx prisma migrate deploy && npm run build
-    startCommand: npm run start
+    buildCommand: npm ci && npx prisma generate && npm run build
+    # Migrations run at start, not at build: Render's build environment cannot
+    # reach the internal database hostname — only the running service can.
+    # `migrate deploy` applies pending migrations only and never resets data.
+    startCommand: npx prisma migrate deploy && npm run start
     healthCheckPath: /signin
     autoDeploy: true
     envVars:
