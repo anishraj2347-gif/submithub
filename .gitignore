@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# keep the template, ignore real secrets
+!.env.example
+
+# one-time password distribution sheet — never commit
+passwords.csv
+
+# login sheet — never commit
+logins.csv
+
+# real class data — never commit
+prisma/roster.csv
+logins.csv
+passwords.csv

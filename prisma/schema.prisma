@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  CR
+  ADMIN
+}
+
+enum SubmissionStatus {
+  UPLOADED
+  CONVERTED
+  FAILED
+  EXCUSED
+}
+
+enum AssignmentStatus {
+  OPEN
+  CLOSED
+  MERGED
+}
+
+enum MergeStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model Student {
+  id           String       @id @default(cuid())
+  name         String
+  enrollmentNo String       @unique
+  // Optional sign-in alias, e.g. "CR - Dev". Falls back to enrollment number.
+  loginId      String?      @unique
+  // Nullable: a roster can be loaded from the college list before anyone's
+  // Google address is known. A student cannot sign in until this is filled.
+  email        String?      @unique
+  // Set by the CR and distributed to students; scrypt hash, never plaintext.
+  passwordHash String?
+  mustChangePassword Boolean  @default(true)
+  // True while the password still matches the documented pattern, so the
+  // admin panel can display it. False once a custom one is set — those are
+  // hashed and genuinely unrecoverable.
+  passwordIsDefault Boolean   @default(true)
+  // AES-GCM sealed copy of an admin-set password, so the Settings panel can
+  // display it. Never used for authentication — that is passwordHash.
+  passwordEnc  String?
+  role         Role         @default(STUDENT)
+  // False for admins added by email who are not part of the class. They are
+  // excluded from roster counts, the dashboard table and merge candidates.
+  isRosterMember Boolean    @default(true)
+  sortKey      String       @default("")
+  createdAt    DateTime     @default(now())
+  submissions  Submission[]
+  auditLogs    AuditLog[]
+
+  @@index([sortKey])
+}
+
+model Assignment {
+  id            String           @id @default(cuid())
+  title         String
+  slug          String           @unique
+  course        String           @default("General")
+  description   String?
+  dueAt         DateTime?
+  driveFolderId String?
+  status        AssignmentStatus @default(OPEN)
+  createdAt     DateTime         @default(now())
+  submissions   Submission[]
+  mergeJobs     MergeJob[]
+}
+
+model Submission {
+  id               String           @id @default(cuid())
+  assignmentId     String
+  studentId        String
+  originalFilename String
+  storedFilename   String
+  driveFileId      String?
+  driveWebViewLink String?
+  pdfDriveFileId   String?
+  mimeType         String
+  sizeBytes        Int
+  pageCount        Int              @default(0)
+  status           SubmissionStatus @default(UPLOADED)
+  error            String?
+  version          Int              @default(1)
+  submittedAt      DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId, status])
+}
+
+model MergeJob {
+  id                  String      @id @default(cuid())
+  assignmentId        String
+  status              MergeStatus @default(QUEUED)
+  version             Int         @default(1)
+  includedSubmissions String[]
+  totalPages          Int         @default(0)
+  outputDriveFileId   String?
+  outputUrl           String?
+  outputFilename      String?
+  pageMap             Json?
+  progress            Int         @default(0)
+  step                String      @default("QUEUED")
+  error               String?
+  createdBy           String?
+  startedAt           DateTime    @default(now())
+  finishedAt          DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, status])
+}
+
+model DriveCredential {
+  id           String   @id @default("singleton")
+  email        String
+  refreshToken String
+  rootFolderId String?
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  targetType String?
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor Student? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
