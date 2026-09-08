@@ -10,7 +10,7 @@ import {
   convertToPdf,
   DriveNotConnectedError,
 } from "@/lib/drive";
-import { MAX_UPLOAD_BYTES, sniffKind, mimeForKind } from "@/lib/filetypes";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, sniffKind, mimeForKind } from "@/lib/filetypes";
 import { buildStoredFilename } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json(
-      { error: `File is ${(file.size / 1048576).toFixed(1)} MB — the limit is 25 MB` },
+      { error: `File is ${(file.size / 1048576).toFixed(1)} MB — the limit is ${MAX_UPLOAD_LABEL}` },
       { status: 413 }
     );
   }

@@ -1,4 +1,7 @@
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
+export const MAX_UPLOAD_MB = 32;
+export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+/** Use this everywhere the limit is shown, so the text cannot drift from the value. */
+export const MAX_UPLOAD_LABEL = `${MAX_UPLOAD_MB} MB`;
 
 export type AcceptedKind = "pdf" | "docx" | "doc" | "odt" | "pptx";
 

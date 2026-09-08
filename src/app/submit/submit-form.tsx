@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Button, Card, CardHeader, CardTitle } from "@/components/ui";
 import { formatBytes } from "@/lib/utils";
-import { ACCEPTED_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/filetypes";
+import { ACCEPTED_EXTENSIONS, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/filetypes";
 
 type Existing = {
   storedFilename: string;
@@ -55,7 +55,7 @@ export function SubmitForm({
     }
     if (next.size > MAX_UPLOAD_BYTES) {
       setFile(null);
-      return setError(`That file is ${formatBytes(next.size)} — the limit is 25 MB.`);
+      return setError(`That file is ${formatBytes(next.size)} — the limit is ${MAX_UPLOAD_LABEL}.`);
     }
     setFile(next);
   }
@@ -204,7 +204,7 @@ export function SubmitForm({
               <UploadCloud className="h-8 w-8 text-slate-400" />
               <p className="mt-3 text-sm font-medium">Drop your file here, or click to browse</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                PDF, DOCX, DOC, ODT or PPTX · up to 25 MB
+                PDF, DOCX, DOC, ODT or PPTX · up to {MAX_UPLOAD_LABEL}
               </p>
             </>
           )}
