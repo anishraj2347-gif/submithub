@@ -91,12 +91,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return student.role === "ADMIN";
     },
     async jwt({ token, user }) {
-      // On credentials sign-in the roster id arrives directly on `user`.
-      const student = user?.id
-        ? await prisma.student.findUnique({ where: { id: user.id } })
-        : token.studentId
+      // Try each identifier in turn rather than committing to one: credentials
+      // sign-in puts the roster id on `user`, but Google puts *its own* account
+      // id there, so that lookup misses and we must fall back to the email.
+      const email = (user?.email ?? token.email)?.toLowerCase();
+
+      let student =
+        (user?.id ? await prisma.student.findUnique({ where: { id: user.id } }) : null) ??
+        (token.studentId
           ? await prisma.student.findUnique({ where: { id: token.studentId as string } })
-          : await prisma.student.findFirst({ where: { email: token.email?.toLowerCase() } });
+          : null);
+
+      if (!student && email) {
+        student = await prisma.student.findFirst({ where: { email } });
+      }
 
       if (!student) {
         // The roster changed under an existing session (student removed or
