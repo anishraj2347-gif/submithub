@@ -211,3 +211,22 @@ export async function downloadFile(drive: drive_v3.Drive, fileId: string): Promi
   );
   return Buffer.from(res.data as ArrayBuffer);
 }
+
+/**
+ * Streaming counterpart to downloadFile, for handing a file straight to the
+ * browser. A merged class document runs to tens or hundreds of megabytes, and
+ * buffering one whole is enough to exhaust a small instance — so the bytes are
+ * never held in memory all at once.
+ *
+ * The size comes back too, so the response can carry Content-Length and the
+ * browser can show a real progress bar rather than an open-ended spinner.
+ */
+export async function downloadFileStream(
+  drive: drive_v3.Drive,
+  fileId: string
+): Promise<{ stream: Readable; size: number | null }> {
+  const meta = await drive.files.get({ fileId, fields: "size" });
+  const res = await drive.files.get({ fileId, alt: "media" }, { responseType: "stream" });
+  const size = meta.data.size ? Number(meta.data.size) : null;
+  return { stream: res.data as unknown as Readable, size: Number.isFinite(size) ? size : null };
+}
