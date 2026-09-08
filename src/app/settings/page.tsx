@@ -37,45 +37,37 @@ export default async function SettingsPage({
       )
     : [];
 
-  const people: Person[] = isAdmin
-    ? (
-        await prisma.student.findMany({
-          where: { isRosterMember: true },
-          orderBy: { sortKey: "asc" },
-        })
-      ).map((p) => ({
-        id: p.id,
-        name: p.name,
-        enrollmentNo: p.enrollmentNo,
-        loginId: p.loginId,
-        role: p.role,
-      }))
-    : [];
+  // Staff both see the roster; only an admin gets the controls that change it.
+  const roster = await prisma.student.findMany({
+    where: { isRosterMember: true },
+    orderBy: { sortKey: "asc" },
+  });
 
-  const loginRows: LoginRow[] = isAdmin
-    ? (
-        await prisma.student.findMany({
-          where: { isRosterMember: true },
-          orderBy: { sortKey: "asc" },
-        })
-      ).map((p) => {
-        const creds = defaultCredentials(p);
-        // A custom password is shown from its sealed copy; if that cannot be
-        // opened (AUTH_SECRET changed) the row says so rather than lying.
-        const custom = p.passwordIsDefault ? null : unseal(p.passwordEnc);
-        return {
-          id: p.id,
-          name: p.name,
-          enrollmentNo: p.enrollmentNo,
-          role: p.role,
-          user: creds.user,
-          password: custom ?? creds.password,
-          isDefault: p.passwordIsDefault,
-          isRecoverable: p.passwordIsDefault || custom !== null,
-        };
-      })
-    : [];
-  const students = await prisma.student.count({ where: { isRosterMember: true } });
+  const people: Person[] = roster.map((p) => ({
+    id: p.id,
+    name: p.name,
+    enrollmentNo: p.enrollmentNo,
+    loginId: p.loginId,
+    role: p.role,
+  }));
+
+  const loginRows: LoginRow[] = roster.map((p) => {
+    const creds = defaultCredentials(p);
+    // A custom password is shown from its sealed copy; if that cannot be
+    // opened (AUTH_SECRET changed) the row says so rather than lying.
+    const custom = p.passwordIsDefault ? null : unseal(p.passwordEnc);
+    return {
+      id: p.id,
+      name: p.name,
+      enrollmentNo: p.enrollmentNo,
+      role: p.role,
+      user: creds.user,
+      password: custom ?? creds.password,
+      isDefault: p.passwordIsDefault,
+      isRecoverable: p.passwordIsDefault || custom !== null,
+    };
+  });
+  const students = roster.length;
 
   return (
     <AppShell user={session.user}>
@@ -142,8 +134,8 @@ export default async function SettingsPage({
           </div>
         </Card>
 
-        {isAdmin ? <CrsPanel people={people} /> : null}
-        {isAdmin ? <LoginsPanel rows={loginRows} /> : null}
+        <CrsPanel people={people} readOnly={!isAdmin} />
+        <LoginsPanel rows={loginRows} />
         {isAdmin ? <AdminsPanel admins={adminRows} /> : null}
 
         <Card>

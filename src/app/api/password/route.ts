@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth";
+import { requireCR } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { defaultCredentials } from "@/lib/credentials";
@@ -18,10 +18,13 @@ const schema = z.union([
   z.object({ all: z.literal(true) }),
 ]);
 
-/** Set, reset, or bulk-reset passwords. Admin accounts are left alone. */
+/**
+ * Set, reset, or bulk-reset passwords. CRs hand out credentials to the class,
+ * so they may do this too; admin accounts are left alone either way.
+ */
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Admins only" }, { status: 403 });
+  const actor = await requireCR();
+  if (!actor) return NextResponse.json({ error: "Staff only" }, { status: 403 });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
@@ -48,8 +51,8 @@ export async function POST(req: NextRequest) {
 
     await prisma.auditLog.create({
       data: {
-        actorId: admin.id,
-        actorEmail: admin.email,
+        actorId: actor.id,
+        actorEmail: actor.email,
         action: "PASSWORD_RESET_ALL",
         metadata: { count: people.length },
       },
@@ -88,8 +91,8 @@ export async function POST(req: NextRequest) {
 
   await prisma.auditLog.create({
     data: {
-      actorId: admin.id,
-      actorEmail: admin.email,
+      actorId: actor.id,
+      actorEmail: actor.email,
       action: custom ? "PASSWORD_SET" : "PASSWORD_RESET",
       targetType: "Student",
       targetId: person.id,

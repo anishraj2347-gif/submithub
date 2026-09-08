@@ -15,7 +15,14 @@ export type Person = {
   role: "STUDENT" | "CR" | "ADMIN";
 };
 
-export function CrsPanel({ people }: { people: Person[] }) {
+export function CrsPanel({
+  people,
+  readOnly = false,
+}: {
+  people: Person[];
+  /** A CR sees who the CRs are; only an admin can appoint or remove one. */
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const crs = people.filter((p) => p.role === "CR");
   const students = people.filter((p) => p.role === "STUDENT");
@@ -106,6 +113,7 @@ export function CrsPanel({ people }: { people: Person[] }) {
                   </span>
                 </span>
                 <Badge tone="indigo">CR</Badge>
+                {readOnly ? null : (
                 <span className="ml-auto flex flex-wrap gap-1">
                   <Button variant="ghost" size="sm" disabled={busy} onClick={() => resetPassword(p)}>
                     <RotateCcw className="h-3.5 w-3.5" /> Reset
@@ -123,11 +131,14 @@ export function CrsPanel({ people }: { people: Person[] }) {
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </span>
+                )}
               </li>
             ))
           )}
         </ul>
 
+        {readOnly ? null : (
+        <>
         <form onSubmit={addCr} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <label className="block">
             <span className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -174,6 +185,9 @@ export function CrsPanel({ people }: { people: Person[] }) {
           The password is set automatically to <code className="font-mono">Name - EnrollmentNo</code>,
           for example <code className="font-mono">Sam - A00000000001</code>.
         </p>
+
+        </>
+        )}
 
         {issued ? (
           <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm dark:bg-emerald-500/10">
