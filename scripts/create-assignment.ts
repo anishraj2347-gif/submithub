@@ -19,18 +19,25 @@ async function main() {
   const course = process.argv[3] ?? "";
   const dueAt = process.argv[4] ? new Date(process.argv[4]) : null;
 
-  const drive = await getDrive();
-  const tree = await ensureAssignmentTree(drive, course, title);
+  // Provision the Drive tree eagerly when Drive is already connected; if it is
+  // not, the folders are created on the first submission instead.
+  let tree: Awaited<ReturnType<typeof ensureAssignmentTree>> | null = null;
+  try {
+    const drive = await getDrive();
+    tree = await ensureAssignmentTree(drive, course, title);
+  } catch {
+    console.log("Drive is not connected yet — folders will be created on the first submission.");
+  }
 
   const assignment = await prisma.assignment.upsert({
     where: { slug: slugify(title) },
-    update: { title, course, dueAt, driveFolderId: tree.assignmentId, status: "OPEN" },
+    update: { title, course, dueAt, driveFolderId: tree?.assignmentId, status: "OPEN" },
     create: {
       title,
       slug: slugify(title),
       course,
       dueAt,
-      driveFolderId: tree.assignmentId,
+      driveFolderId: tree?.assignmentId,
       status: "OPEN",
     },
   });
@@ -44,10 +51,9 @@ async function main() {
   console.log(`\nAssignment:  ${assignment.title}`);
   console.log(`Slug:        ${assignment.slug}   (files -> <enroll>_<name>_${assignment.slug}.pdf)`);
   console.log(`Due:         ${dueAt ? dueAt.toLocaleString() : "no due date"}`);
-  console.log(`Drive folder: https://drive.google.com/drive/folders/${tree.assignmentId}`);
-  console.log(`  submissions/ ${tree.submissions}`);
-  console.log(`  normalized/  ${tree.normalized}`);
-  console.log(`  final/       ${tree.final}`);
+  if (tree) {
+    console.log(`Drive folder: https://drive.google.com/drive/folders/${tree.assignmentId}`);
+  }
   if (closed.count) console.log(`\nClosed ${closed.count} previously open assignment(s).`);
 }
 
