@@ -36,6 +36,8 @@ export function SubmitForm({
   enrollmentNo: string;
   existing: Existing;
 }) {
+  const [name, setName] = React.useState(studentName);
+  const [enrollment, setEnrollment] = React.useState(enrollmentNo);
   const [file, setFile] = React.useState<File | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -66,7 +68,8 @@ export function SubmitForm({
 
     const body = new FormData();
     body.set("assignmentId", assignmentId);
-    body.set("enrollmentNo", enrollmentNo);
+    body.set("enrollmentNo", enrollment.trim());
+    body.set("name", name.trim());
     body.set("file", file);
 
     try {
@@ -134,24 +137,27 @@ export function SubmitForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Full name">
             <input
-              value={studentName}
-              readOnly
-              aria-readonly
-              className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900"
             />
           </Field>
           <Field label="Enrollment number">
             <input
-              value={enrollmentNo}
-              readOnly
-              aria-readonly
-              className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
+              value={enrollment}
+              onChange={(e) => setEnrollment(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-900"
             />
           </Field>
         </div>
-        <p className="-mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-500" />
-          Filled in from your account — these cannot be edited.
+        <p className="-mt-2 flex items-start gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-500" />
+          <span>
+            Filled in from your account. Correct your name if it is spelled
+            differently — the enrollment number must stay your own.
+          </span>
         </p>
 
         {existing ? (

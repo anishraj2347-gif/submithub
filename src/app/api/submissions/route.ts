@@ -26,6 +26,9 @@ export const maxDuration = 60;
 const schema = z.object({
   assignmentId: z.string().min(1),
   enrollmentNo: z.string().min(1),
+  // A student may correct the spelling of their own name; identity still comes
+  // from the session, never from this field.
+  name: z.string().trim().min(1).max(80).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -42,6 +45,7 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse({
     assignmentId: form.get("assignmentId"),
     enrollmentNo: form.get("enrollmentNo"),
+    name: form.get("name") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: "Missing assignment or enrollment number" }, { status: 400 });
@@ -64,12 +68,30 @@ export async function POST(req: NextRequest) {
   const student = await prisma.student.findUnique({ where: { id: user.id } });
   if (!student) return NextResponse.json({ error: "You are not on the roster" }, { status: 403 });
 
-  // A student may only ever submit under their own enrollment number.
-  if (student.enrollmentNo !== parsed.data.enrollmentNo) {
+  // A student may only ever submit under their own enrollment number. The
+  // field is editable so it can be checked, not so it can be changed.
+  if (student.enrollmentNo.toUpperCase() !== parsed.data.enrollmentNo.toUpperCase()) {
     return NextResponse.json(
-      { error: "Enrollment number does not match your roster record" },
+      {
+        error: `That enrollment number is not yours. Yours is ${student.enrollmentNo}.`,
+      },
       { status: 403 }
     );
+  }
+
+  // Persist a corrected spelling so it appears on the dashboard, the stored
+  // filename and the separator pages of the merged document.
+  const correctedName = parsed.data.name?.trim();
+  if (correctedName && correctedName !== student.name) {
+    const clash = await prisma.student.findFirst({
+      where: { name: correctedName, isRosterMember: true, NOT: { id: student.id } },
+    });
+    // Two roster members sharing a name would break name-based sign-in for
+    // both of them, so keep the roster name in that case.
+    if (!clash) {
+      await prisma.student.update({ where: { id: student.id }, data: { name: correctedName } });
+      student.name = correctedName;
+    }
   }
 
   const assignment = await prisma.assignment.findUnique({ where: { id: parsed.data.assignmentId } });
