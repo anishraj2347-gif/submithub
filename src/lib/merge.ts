@@ -239,10 +239,19 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
       },
     });
 
-    await prisma.assignment.update({
-      where: { id: job.assignmentId },
-      data: { status: "MERGED" },
-    });
+    // A merge does not close submissions while the deadline is still ahead —
+    // the CR can merge early to preview the packet, and latecomers keep their
+    // window. The due date is enforced independently in the submissions API,
+    // so only mark the assignment MERGED once that window has actually shut.
+    const deadlinePassed = job.assignment.dueAt
+      ? job.assignment.dueAt.getTime() < Date.now()
+      : true;
+    if (deadlinePassed) {
+      await prisma.assignment.update({
+        where: { id: job.assignmentId },
+        data: { status: "MERGED" },
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Merge failed";
     console.error("[merge]", err);
