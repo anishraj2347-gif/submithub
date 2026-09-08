@@ -13,14 +13,14 @@ databases:
     plan: free
     # Must match the web service: Render's internal database hostname only
     # resolves within a single region.
-    region: oregon
+    region: singapore
 
 services:
   - type: web
     name: submithub
     runtime: node
     plan: free
-    region: oregon
+    region: singapore
     branch: main
     buildCommand: npm ci && npx prisma generate && npm run build
     # Migrations run at start, not at build: Render's build environment cannot
