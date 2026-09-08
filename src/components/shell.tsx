@@ -10,13 +10,15 @@ export function AppShell({
   children: React.ReactNode;
   user: { name?: string | null; email?: string | null; role: "STUDENT" | "CR" | "ADMIN"; enrollmentNo: string };
 }) {
+  const submit = { href: "/submit", label: "Submit", icon: Upload };
+  const staff = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/settings", label: "Settings", icon: Settings },
+  ];
+  // A CR runs the class and is in it: they get both doors. The admin only
+  // manages, so no Submit link.
   const nav =
-    user.role === "CR" || user.role === "ADMIN"
-      ? [
-          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          { href: "/settings", label: "Settings", icon: Settings },
-        ]
-      : [{ href: "/submit", label: "Submit", icon: Upload }];
+    user.role === "ADMIN" ? staff : user.role === "CR" ? [submit, ...staff] : [submit];
 
   return (
     <div className="min-h-screen">

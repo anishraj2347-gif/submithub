@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
-import { auth, isStaff } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AppShell } from "@/components/shell";
 import { Badge, Card, EmptyState } from "@/components/ui";
@@ -9,8 +9,14 @@ import { SubmitForm } from "./submit-form";
 export default async function SubmitPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
-  // CRs and the admin manage submissions, they do not make them.
-  if (isStaff(session.user.role)) redirect("/dashboard");
+  // A CR is still a student of this class, so they submit their own work here
+  // like everyone else. Only accounts that are not on the roster — the admin,
+  // and any staff-only row — have nothing to submit.
+  const me = await prisma.student.findUnique({
+    where: { id: session.user.id },
+    select: { isRosterMember: true },
+  });
+  if (!me?.isRosterMember) redirect("/dashboard");
   const user = session.user;
 
   const assignment = await prisma.assignment.findFirst({
