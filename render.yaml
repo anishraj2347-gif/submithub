@@ -40,6 +40,11 @@ services:
         value: "true"
       - key: NODE_VERSION
         value: "22"
+      # Server-rendered dates (due dates, submission times) use the server's
+      # timezone. Without this they render in UTC and a 23:59 IST deadline
+      # shows as 18:29 to the class.
+      - key: TZ
+        value: Asia/Kolkata
       # Set these in the Render dashboard:
       #   AUTH_URL             https://<your-service>.onrender.com
       #   GOOGLE_CLIENT_ID     from Google Cloud
