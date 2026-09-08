@@ -31,7 +31,7 @@ async function main() {
   const tree = await ensureAssignmentTree(drive, assignment.course, assignment.title);
 
   // Deliberately spans the 9 -> 10 boundary to prove natural ordering in the real merge.
-  const targets = ["21BCE2", "21BCE9", "21BCE10", "21BCE11"];
+  const targets = (process.env.TARGETS ?? "").split(",").map((t) => t.trim()).filter(Boolean);
   const pageCounts = [1, 3, 2, 1];
 
   for (const [i, enrollmentNo] of targets.entries()) {

@@ -136,19 +136,22 @@ export function SubmitForm({
             <input
               value={studentName}
               readOnly
-              className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+              aria-readonly
+              className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
             />
           </Field>
           <Field label="Enrollment number">
             <input
               value={enrollmentNo}
               readOnly
-              className="w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400"
+              aria-readonly
+              className="w-full cursor-default rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm font-medium text-slate-900 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100"
             />
           </Field>
         </div>
-        <p className="-mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Both fields come from the class roster and cannot be edited.
+        <p className="-mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-500" />
+          Filled in from your account — these cannot be edited.
         </p>
 
         {existing ? (

@@ -26,8 +26,11 @@ async function findByLoginId(loginId: string) {
   });
   if (byEnrollment) return { student: byEnrollment, ambiguous: false };
 
+  // A name only ever identifies a class member. Staff rows deliberately carry
+  // the same person's name, so without this filter a CR's own student login
+  // would look ambiguous against their staff row.
   const byName = await prisma.student.findMany({
-    where: { name: { equals: id, mode: "insensitive" } },
+    where: { name: { equals: id, mode: "insensitive" }, isRosterMember: true },
   });
   // Two students share a name on this roster, so a name alone is not an identity.
   if (byName.length > 1) return { student: null, ambiguous: true };
