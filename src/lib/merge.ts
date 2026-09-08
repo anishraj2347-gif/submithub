@@ -45,7 +45,29 @@ async function driveStorage(course: string, title: string): Promise<MergeStorage
   };
 }
 
+/**
+ * Thrown when the CR stopped the job mid-flight. It unwinds the same way a
+ * real failure does, but the catch block records it as CANCELLED rather than
+ * burying "we changed our mind" in the failure log.
+ */
+class MergeCancelled extends Error {
+  constructor() {
+    super("Merge cancelled");
+    this.name = "MergeCancelled";
+  }
+}
+
+/**
+ * The only cancellation channel we have: the job runs in-process with no
+ * handle to abort it, so it re-reads its own row at each checkpoint and
+ * unwinds itself when the status has been flipped underneath it.
+ */
 async function setStep(jobId: string, step: string, progress: number) {
+  const row = await prisma.mergeJob.findUnique({
+    where: { id: jobId },
+    select: { status: true },
+  });
+  if (!row || row.status === "CANCELLED") throw new MergeCancelled();
   await prisma.mergeJob.update({ where: { id: jobId }, data: { step, progress } });
 }
 
@@ -127,6 +149,10 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
     const pageMap: PageMapEntry[] = [];
 
     for (let i = 0; i < submissions.length; i++) {
+      // Checkpoint first: this both reports progress and gives the CR a place
+      // to stop the job before we spend time on another Drive download.
+      await setStep(jobId, "MERGING", 20 + Math.round((i / submissions.length) * 55));
+
       const sub = submissions[i];
       const label = `${sub.student.enrollmentNo} (${sub.student.name})`;
 
@@ -181,8 +207,6 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
         startPage,
         endPage: out.getPageCount(),
       });
-
-      await setStep(jobId, "MERGING", 20 + Math.round((i / submissions.length) * 55));
     }
 
     if (options.tableOfContents && tocPages.length > 0) {
@@ -224,8 +248,11 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
 
     const uploadedFile = await store.saveFinal(filename, pdfBytes);
 
-    await prisma.mergeJob.update({
-      where: { id: jobId },
+    // A cancel can land while the upload is in flight. Don't let the success
+    // write resurrect the job — the CR asked for it to stop, and the orphaned
+    // Drive file is harmless (it is only reachable from a job row).
+    const finished = await prisma.mergeJob.updateMany({
+      where: { id: jobId, status: { not: "CANCELLED" } },
       data: {
         status: "SUCCESS",
         step: "DONE",
@@ -238,6 +265,7 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
         finishedAt: new Date(),
       },
     });
+    if (finished.count === 0) return;
 
     // A merge does not close submissions while the deadline is still ahead —
     // the CR can merge early to preview the packet, and latecomers keep their
@@ -253,6 +281,15 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
       });
     }
   } catch (err) {
+    if (err instanceof MergeCancelled) {
+      // The status was already set by whoever cancelled; only close out the
+      // run. No partial PDF is uploaded, so there is nothing to clean up.
+      await prisma.mergeJob.update({
+        where: { id: jobId },
+        data: { step: "CANCELLED", finishedAt: new Date() },
+      });
+      return;
+    }
     const message = err instanceof Error ? err.message : "Merge failed";
     console.error("[merge]", err);
     await prisma.mergeJob.update({

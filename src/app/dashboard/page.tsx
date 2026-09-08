@@ -1,15 +1,16 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  Users, CheckCircle2, Clock, Timer, FileStack, HardDriveUpload, History, AlertTriangle,
+  Users, CheckCircle2, Clock, Timer, FileStack, HardDriveUpload,
 } from "lucide-react";
 import { auth, isStaff } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isDriveConnected } from "@/lib/drive";
 import { AppShell } from "@/components/shell";
-import { Badge, Button, Card, CardHeader, CardTitle, StatCard } from "@/components/ui";
+import { Button, Card, StatCard } from "@/components/ui";
 import { relativeTime } from "@/lib/utils";
 import { RosterTable, type Row } from "./roster-table";
+import { MergeHistory, type MergeRow } from "./merge-history";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,15 @@ export default async function DashboardPage() {
     null
   );
   const activeJob = jobs.find((j) => j.status === "QUEUED" || j.status === "RUNNING");
+
+  const mergeRows: MergeRow[] = jobs.map((job) => ({
+    id: job.id,
+    version: job.version,
+    status: job.status,
+    fileCount: job.includedSubmissions.length,
+    totalPages: job.totalPages,
+    startedAt: job.startedAt.toISOString(),
+  }));
 
   return (
     <AppShell user={user}>
@@ -143,39 +153,7 @@ export default async function DashboardPage() {
 
         <RosterTable rows={rows} />
 
-        {jobs.length > 0 ? (
-          <Card>
-            <CardHeader className="flex items-center gap-2">
-              <History className="h-4 w-4 text-slate-400" />
-              <CardTitle>Merge history</CardTitle>
-            </CardHeader>
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {jobs.map((job) => (
-                <li key={job.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
-                  <Badge
-                    tone={
-                      job.status === "SUCCESS" ? "green" : job.status === "FAILED" ? "red" : "indigo"
-                    }
-                  >
-                    {job.status === "FAILED" ? <AlertTriangle className="h-3 w-3" /> : null}
-                    v{job.version} · {job.status}
-                  </Badge>
-                  <span className="text-slate-600 dark:text-slate-400">
-                    {job.includedSubmissions.length} files
-                    {job.totalPages ? ` · ${job.totalPages} pages` : ""}
-                  </span>
-                  <span className="text-xs text-slate-400">{relativeTime(job.startedAt)}</span>
-                  <Link
-                    href={`/merge/${job.id}`}
-                    className="ml-auto text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-                  >
-                    View
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        ) : null}
+        <MergeHistory jobs={mergeRows} />
       </div>
     </AppShell>
   );

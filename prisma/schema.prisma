@@ -30,6 +30,7 @@ enum MergeStatus {
   RUNNING
   SUCCESS
   FAILED
+  CANCELLED
 }
 
 model Student {

@@ -2,15 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  CheckCircle2, AlertTriangle, Download, ExternalLink, Loader2, ArrowLeft,
+  CheckCircle2, AlertTriangle, Download, ExternalLink, Loader2, ArrowLeft, Ban, Trash2,
 } from "lucide-react";
 import { Badge, Button, Card, CardHeader, CardTitle } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 type Job = {
   id: string;
-  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED";
+  status: "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
   step: string;
   progress: number;
   totalPages: number;
@@ -24,11 +25,17 @@ type Job = {
 
 const STEPS = ["FETCHING", "MERGING", "UPLOADING", "DONE"] as const;
 
+const DONE: Job["status"][] = ["SUCCESS", "FAILED", "CANCELLED"];
+
 export function ProgressClient({ initial }: { initial: Job }) {
+  const router = useRouter();
   const [job, setJob] = React.useState<Job>(initial);
+  const [busy, setBusy] = React.useState<null | "stop" | "delete">(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   React.useEffect(() => {
-    if (job.status === "SUCCESS" || job.status === "FAILED") return;
+    if (DONE.includes(job.status)) return;
     const t = setInterval(async () => {
       const res = await fetch(`/api/merge/${job.id}`, { cache: "no-store" });
       if (res.ok) setJob(await res.json());
@@ -36,7 +43,67 @@ export function ProgressClient({ initial }: { initial: Job }) {
     return () => clearInterval(t);
   }, [job.id, job.status]);
 
+  // The worker only notices a cancel at its next checkpoint, so leave the
+  // poller running and let it report the job's own account of itself.
+  async function stop() {
+    setBusy("stop");
+    setError(null);
+    const res = await fetch(`/api/merge/${job.id}`, { method: "PATCH" });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) setError(body?.error ?? "Could not stop this merge.");
+    else setJob((j) => ({ ...j, step: "CANCELLING" }));
+    setBusy(null);
+  }
+
+  async function remove() {
+    setBusy("delete");
+    setError(null);
+    const res = await fetch(`/api/merge/${job.id}`, { method: "DELETE" });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(body?.error ?? "Could not delete this merge.");
+      setBusy(null);
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
+  }
+
   const activeIndex = STEPS.indexOf(job.step as (typeof STEPS)[number]);
+
+  const deleteControls = (
+    <div className="mt-6 border-t border-slate-100 pt-4 dark:border-slate-800">
+      {confirmDelete ? (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Remove v{job.version} from the merge history?
+          </p>
+          <p className="text-xs text-slate-500">
+            The PDF stays in the Drive <span className="font-mono">final</span> folder — only this
+            record is removed.
+          </p>
+          <div className="flex justify-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(false)}>
+              Keep it
+            </Button>
+            <Button variant="danger" size="sm" onClick={remove} disabled={busy !== null}>
+              {busy === "delete" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Delete merge
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+          <Trash2 className="h-4 w-4" /> Delete this merge
+        </Button>
+      )}
+      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+    </div>
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -62,6 +129,24 @@ export function ProgressClient({ initial }: { initial: Job }) {
               <Button variant="secondary">Back to verification</Button>
             </Link>
           </div>
+          {deleteControls}
+        </Card>
+      ) : job.status === "CANCELLED" ? (
+        <Card className="p-8 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            <Ban className="h-6 w-6" />
+          </span>
+          <h1 className="mt-4 text-lg font-semibold">Merge stopped</h1>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-600 dark:text-slate-300">
+            You stopped this merge before it finished. Nothing was uploaded, and no submission was
+            changed.
+          </p>
+          <div className="mt-6">
+            <Link href="/merge/verify">
+              <Button variant="secondary">Start a new merge</Button>
+            </Link>
+          </div>
+          {deleteControls}
         </Card>
       ) : job.status === "SUCCESS" ? (
         <>
@@ -92,6 +177,7 @@ export function ProgressClient({ initial }: { initial: Job }) {
                 </a>
               ) : null}
             </div>
+            {deleteControls}
           </Card>
 
           {job.pageMap?.entries?.length ? (
@@ -148,6 +234,27 @@ export function ProgressClient({ initial }: { initial: Job }) {
               </li>
             ))}
           </ol>
+
+          <div className="mt-6 flex flex-col items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+            {job.step === "CANCELLING" ? (
+              <p className="text-sm text-slate-500">
+                Stopping after the current file — this can take a moment.
+              </p>
+            ) : (
+              <Button variant="secondary" size="sm" onClick={stop} disabled={busy !== null}>
+                {busy === "stop" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Ban className="h-4 w-4" />
+                )}
+                Stop merge
+              </Button>
+            )}
+            <p className="text-xs text-slate-500">
+              Stopping discards the half-built document. Nothing is uploaded.
+            </p>
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          </div>
         </Card>
       )}
     </div>

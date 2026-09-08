@@ -117,7 +117,8 @@ Filenames are `{enrollmentNo}_{lastName}_{assignment-slug}.{ext}`.
 ```bash
 npx tsx -r dotenv/config scripts/test-merge.ts          # ordering, page map, page counts
 npx tsx -r dotenv/config scripts/test-merge-failure.ts  # a bad file fails loudly
+npx tsx -r dotenv/config scripts/test-merge-cancel.ts   # stopping mid-run uploads nothing
 ```
 
-Both run the real merge engine against an in-memory storage seam, so they need
+All three run the real merge engine against an in-memory storage seam, so they need
 Postgres but not Google Drive.
