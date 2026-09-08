@@ -40,6 +40,11 @@ services:
         value: "true"
       - key: NODE_VERSION
         value: "22"
+      # The instance has 512 MB. Left to itself V8 grows the heap until the
+      # box is gone; capping it makes collection happen early enough that a
+      # merge of a whole class fits. Measured peak drops by roughly 60 MB.
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=320"
       # Server-rendered dates (due dates, submission times) use the server's
       # timezone. Without this they render in UTC and a 23:59 IST deadline
       # shows as 18:29 to the class.

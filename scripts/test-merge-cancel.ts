@@ -28,7 +28,7 @@ const storage: MergeStorage = {
     if (!b) throw new Error(`missing ${id}`);
     return b;
   },
-  async saveFinal(name, bytes) {
+  async saveFinal() {
     saveCalls += 1;
     return { id: "fake-final", webViewLink: null };
   },

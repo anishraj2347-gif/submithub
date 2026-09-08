@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import { prisma } from "@/lib/prisma";
 import { getDrive, ensureAssignmentTree, uploadOrReplace, downloadFile } from "@/lib/drive";
+import { compressDocumentImages } from "@/lib/compress";
 
 export type MergeOptions = {
   coverPage: boolean;
@@ -147,6 +148,8 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
     await setStep(jobId, "MERGING", 20);
 
     const pageMap: PageMapEntry[] = [];
+    let imageBytesBefore = 0;
+    let imageBytesAfter = 0;
 
     for (let i = 0; i < submissions.length; i++) {
       // Checkpoint first: this both reports progress and gives the CR a place
@@ -193,6 +196,15 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
         if (src.isEncrypted) {
           throw new Error(`${label} submitted a password-protected PDF. Exclude them or ask for an unlocked copy.`);
         }
+        // Students submit phone photos at full camera resolution. Left alone,
+        // a class packet reaches hundreds of megabytes: too large for Drive to
+        // preview, and large enough to exhaust the instance building it.
+        // Compressing each file before its pages are copied keeps peak memory
+        // to one submission rather than the whole document.
+        const shrunk = await compressDocumentImages(src);
+        imageBytesBefore += shrunk.bytesBefore;
+        imageBytesAfter += shrunk.bytesAfter;
+
         const copied = await out.copyPages(src, src.getPageIndices());
         if (copied.length === 0) throw new Error(`${label} submitted a PDF with no pages.`);
         copied.forEach((p) => out.addPage(p));
@@ -261,7 +273,11 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
         outputDriveFileId: uploadedFile.id,
         outputUrl: uploadedFile.webViewLink,
         outputFilename: filename,
-        pageMap: { options, entries: pageMap },
+        pageMap: {
+          options,
+          entries: pageMap,
+          images: { bytesBefore: imageBytesBefore, bytesAfter: imageBytesAfter },
+        },
         finishedAt: new Date(),
       },
     });

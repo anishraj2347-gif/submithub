@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PDFDocument } from "pdf-lib";
+import { compressDocumentImages } from "@/lib/compress";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -165,8 +166,9 @@ export async function POST(req: NextRequest) {
     }
 
     let pageCount = 0;
+    let doc: PDFDocument;
     try {
-      const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
       if (doc.isEncrypted) throw new Error("encrypted");
       pageCount = doc.getPageCount();
     } catch {
@@ -174,6 +176,20 @@ export async function POST(req: NextRequest) {
         "That PDF is password-protected or corrupt and cannot be merged. Remove the password and try again.",
         422
       );
+    }
+
+    // Shrink the images now, while this is one document in one request. Left
+    // until merge time, twenty-odd untouched submissions have to be held at
+    // once, which is more than the instance has; and phone photos at full
+    // camera resolution are what makes them large. The stored copy is the
+    // compressed one, so every later step — merging, downloading, previewing
+    // in Drive — works with a document a fraction of the size.
+    try {
+      const shrunk = await compressDocumentImages(doc);
+      if (shrunk.changed > 0) pdfBytes = Buffer.from(await doc.save());
+    } catch {
+      // A submission that cannot be compressed is still a valid submission.
+      console.error("[submissions] image compression failed; storing as-is");
     }
     if (pageCount === 0) {
       throw new UserFacingError("That file has no readable pages", 422);
