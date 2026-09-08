@@ -142,10 +142,22 @@ export async function runMergeJob(jobId: string, storage?: MergeStorage): Promis
       }
 
       if (options.separators) {
+        // Mirrors the header students use inside their own documents:
+        //   DEV PRAKASH THAKUR
+        //   A45304925011   B.Sc. (IT) III
         const sep = out.addPage(A4);
-        drawCentered(sep, sub.student.enrollmentNo, helvBold, 20, 470, ACCENT);
-        drawCentered(sep, sub.student.name, helvBold, 16, 442);
-        drawCentered(sep, sub.originalFilename, helv, 10, 418, MUTED);
+        drawCentered(sep, sub.student.name.toUpperCase(), helvBold, 20, 474);
+        const programme = job.assignment.programme?.trim();
+        drawCentered(
+          sep,
+          programme
+            ? `${sub.student.enrollmentNo}   ${programme}`
+            : sub.student.enrollmentNo,
+          helvBold,
+          14,
+          446,
+          ACCENT
+        );
       }
 
       const startPage = out.getPageCount() + 1;

@@ -68,6 +68,10 @@ model Assignment {
   title         String
   slug          String           @unique
   course        String           @default("General")
+  // Programme label printed beside the enrollment number on separator pages,
+  // e.g. "B.Sc. (IT) III". Kept separate from `course` because `course` also
+  // shapes the Drive folder path.
+  programme     String?
   description   String?
   dueAt         DateTime?
   driveFolderId String?
