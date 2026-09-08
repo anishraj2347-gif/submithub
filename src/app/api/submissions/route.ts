@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  getDrive,
+  getDriveContext,
   ensureAssignmentTree,
   uploadOrReplace,
   convertToPdf,
@@ -120,8 +120,9 @@ export async function POST(req: NextRequest) {
   );
 
   let drive;
+  let auth;
   try {
-    drive = await getDrive();
+    ({ drive, auth } = await getDriveContext());
   } catch (err) {
     if (err instanceof DriveNotConnectedError) {
       return NextResponse.json({ error: err.message }, { status: 503 });
@@ -158,6 +159,8 @@ export async function POST(req: NextRequest) {
         mimeType: mimeForKind(kind),
         body: buf,
         isPresentation: kind === "pptx",
+        // Needed to export documents over Drive's 10 MB export limit.
+        auth,
       });
     }
 

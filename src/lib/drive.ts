@@ -1,4 +1,5 @@
 import { google, type drive_v3 } from "googleapis";
+import type { OAuth2Client } from "google-auth-library";
 import { Readable } from "node:stream";
 import { prisma } from "@/lib/prisma";
 
@@ -29,13 +30,20 @@ export function oauthClient(redirectUri?: string) {
 /**
  * All Drive traffic goes through the single connected CR account, so every
  * submission lands in one folder tree the CR actually owns.
+ *
+ * The raw OAuth client comes back too, because exporting a document larger
+ * than 10 MB needs a plain authorized fetch rather than the Drive client.
  */
-export async function getDrive(): Promise<drive_v3.Drive> {
+export async function getDriveContext(): Promise<{ drive: drive_v3.Drive; auth: OAuth2Client }> {
   const cred = await prisma.driveCredential.findUnique({ where: { id: "singleton" } });
   if (!cred) throw new DriveNotConnectedError();
   const client = oauthClient();
   client.setCredentials({ refresh_token: cred.refreshToken });
-  return google.drive({ version: "v3", auth: client });
+  return { drive: google.drive({ version: "v3", auth: client }), auth: client };
+}
+
+export async function getDrive(): Promise<drive_v3.Drive> {
+  return (await getDriveContext()).drive;
 }
 
 export async function isDriveConnected(): Promise<boolean> {
@@ -140,7 +148,13 @@ export async function uploadOrReplace(
  */
 export async function convertToPdf(
   drive: drive_v3.Drive,
-  opts: { name: string; mimeType: string; body: Buffer; isPresentation: boolean }
+  opts: {
+    name: string;
+    mimeType: string;
+    body: Buffer;
+    isPresentation: boolean;
+    auth?: OAuth2Client;
+  }
 ): Promise<Buffer> {
   const temp = await drive.files.create({
     requestBody: {
@@ -151,12 +165,40 @@ export async function convertToPdf(
     fields: "id",
   });
   const tempId = temp.data.id!;
+
   try {
-    const exported = await drive.files.export(
-      { fileId: tempId, mimeType: "application/pdf" },
-      { responseType: "arraybuffer" }
-    );
-    return Buffer.from(exported.data as ArrayBuffer);
+    try {
+      const exported = await drive.files.export(
+        { fileId: tempId, mimeType: "application/pdf" },
+        { responseType: "arraybuffer" }
+      );
+      return Buffer.from(exported.data as ArrayBuffer);
+    } catch (err) {
+      // files.export is capped at 10 MB and answers 403 above it. Google's
+      // documented route for larger documents is the exportLinks URL, fetched
+      // with the same credentials.
+      const status = (err as { code?: number; status?: number })?.code ??
+        (err as { status?: number })?.status;
+      if (status !== 403 || !opts.auth) throw err;
+
+      const meta = await drive.files.get({ fileId: tempId, fields: "exportLinks" });
+      const link = (meta.data.exportLinks as Record<string, string> | undefined)?.[
+        "application/pdf"
+      ];
+      if (!link) throw err;
+
+      const token = (await opts.auth.getAccessToken()).token;
+      if (!token) throw err;
+
+      const res = await fetch(link, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        throw new Error(
+          `Google could not export this document to PDF (${res.status}). ` +
+            "It may be too large or too complex to convert."
+        );
+      }
+      return Buffer.from(await res.arrayBuffer());
+    }
   } finally {
     await drive.files.delete({ fileId: tempId }).catch(() => {});
   }
