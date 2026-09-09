@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireCR } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { runMergeJob } from "@/lib/merge";
+import { runMergeJob, staleJobCutoff } from "@/lib/merge";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -31,8 +31,13 @@ export async function POST(req: NextRequest) {
   }
   const { assignmentId, submissionIds, options } = parsed.data;
 
+  // A job whose worker died would otherwise block every future merge.
   const running = await prisma.mergeJob.findFirst({
-    where: { assignmentId, status: { in: ["QUEUED", "RUNNING"] } },
+    where: {
+      assignmentId,
+      status: { in: ["QUEUED", "RUNNING"] },
+      startedAt: { gte: staleJobCutoff() },
+    },
   });
   if (running) {
     return NextResponse.json(

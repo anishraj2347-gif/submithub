@@ -5,6 +5,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { readFileSync } from "node:fs";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { runMergeJob, type MergeStorage } from "../src/lib/merge";
 
@@ -21,8 +22,8 @@ const storage: MergeStorage = {
     if (!b) throw new Error(`missing ${id}`);
     return b;
   },
-  async saveFinal(name, bytes) {
-    saved = { name, bytes };
+  async saveFinal(name, file) {
+    saved = { name, bytes: readFileSync(file.path) };
     return { id: "fake-final", webViewLink: "https://drive.example/fake" };
   },
 };

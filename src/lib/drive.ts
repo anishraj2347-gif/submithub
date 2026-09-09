@@ -1,6 +1,7 @@
 import { google, type drive_v3 } from "googleapis";
 import type { OAuth2Client } from "google-auth-library";
 import { Readable } from "node:stream";
+import { createReadStream } from "node:fs";
 import { prisma } from "@/lib/prisma";
 
 export const DRIVE_SCOPES = [
@@ -114,6 +115,35 @@ async function findByNameInFolder(drive: drive_v3.Drive, name: string, parentId:
 }
 
 /** Upload, replacing any existing file of the same name (resubmission). */
+/**
+ * Uploads from a file on disk rather than a Buffer. A merged class document is
+ * built in memory and is already the largest thing the process holds; reading
+ * it back as a stream means the upload does not need a second copy of it.
+ */
+export async function uploadOrReplaceFromFile(
+  drive: drive_v3.Drive,
+  opts: { name: string; parentId: string; mimeType: string; path: string }
+): Promise<{ id: string; webViewLink: string | null }> {
+  const existing = await findByNameInFolder(drive, opts.name, opts.parentId);
+  const media = { mimeType: opts.mimeType, body: createReadStream(opts.path) };
+
+  if (existing) {
+    const updated = await drive.files.update({
+      fileId: existing,
+      media,
+      fields: "id, webViewLink",
+    });
+    return { id: updated.data.id!, webViewLink: updated.data.webViewLink ?? null };
+  }
+
+  const created = await drive.files.create({
+    requestBody: { name: opts.name, parents: [opts.parentId] },
+    media,
+    fields: "id, webViewLink",
+  });
+  return { id: created.data.id!, webViewLink: created.data.webViewLink ?? null };
+}
+
 export async function uploadOrReplace(
   drive: drive_v3.Drive,
   opts: { name: string; parentId: string; mimeType: string; body: Buffer; convertTo?: string }

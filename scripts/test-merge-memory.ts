@@ -8,6 +8,7 @@
  *
  *   DATABASE_URL="..." npx tsx scripts/test-merge-memory.ts
  */
+import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { runMergeJob, type MergeStorage } from "../src/lib/merge";
@@ -46,15 +47,32 @@ async function main() {
   const drive = await getDrive();
   let saved: Buffer | null = null;
   let peak = process.memoryUsage().rss;
+  let peakAfterFetch = 0;
   const watch = setInterval(() => {
     const rss = process.memoryUsage().rss;
     if (rss > peak) peak = rss;
+    // Once reading is done, track the assemble-and-save phase separately.
+    if (lastFetchAt > 0 && Date.now() - lastFetchAt > 1500 && rss > peakAfterFetch) {
+      peakAfterFetch = rss;
+    }
   }, 50);
 
+  // Mark when the last source file is read: everything after that point is
+  // assembling and saving, so the two phases can be told apart.
+  let fetches = 0;
+  let lastFetchAt = 0;
+  let peakDuringFetch = 0;
   const storage: MergeStorage = {
-    fetchPdf: (id) => downloadFile(drive, id),
-    async saveFinal(_name, bytes) {
-      saved = bytes;
+    fetchPdf: async (id) => {
+      fetches += 1;
+      lastFetchAt = Date.now();
+      const b = await downloadFile(drive, id);
+      peakDuringFetch = Math.max(peakDuringFetch, process.memoryUsage().rss);
+      return b;
+    },
+    async saveFinal(_name, file) {
+      // Read it back so the assertions still see the finished document.
+      saved = readFileSync(file.path);
       return { id: "not-uploaded", webViewLink: null };
     },
   };
@@ -93,7 +111,11 @@ async function main() {
     }
     const out = saved as Buffer | null;
     console.log(`final document: ${out ? mb(out.length) : "?"} MB`);
-    console.log(`peak RSS: ${mb(peak)} MB of a ${INSTANCE_MB} MB instance\n`);
+    console.log(`peak RSS: ${mb(peak)} MB of a ${INSTANCE_MB} MB instance`);
+    console.log(
+      `  peak while reading ${fetches} submissions: ${mb(peakDuringFetch)} MB\n` +
+        `  peak after the last read (assemble + save): ${mb(peakAfterFetch)} MB\n`
+    );
 
     assert(done.status === "SUCCESS", "the merge completed");
     assert(out !== null, "a document was produced");

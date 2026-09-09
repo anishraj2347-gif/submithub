@@ -6,6 +6,7 @@ import {
 import { auth, isStaff } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isDriveConnected } from "@/lib/drive";
+import { staleJobCutoff } from "@/lib/merge";
 import { AppShell } from "@/components/shell";
 import { Button, Card, StatCard } from "@/components/ui";
 import { relativeTime } from "@/lib/utils";
@@ -65,7 +66,12 @@ export default async function DashboardPage() {
     (acc, s) => (!acc || s.submittedAt > acc ? s.submittedAt : acc),
     null
   );
-  const activeJob = jobs.find((j) => j.status === "QUEUED" || j.status === "RUNNING");
+  // A stranded job (its worker died mid-merge) is not "in progress": ignoring
+  // it here is what lets the CR start another merge without waiting for help.
+  const staleBefore = staleJobCutoff();
+  const activeJob = jobs.find(
+    (j) => (j.status === "QUEUED" || j.status === "RUNNING") && j.startedAt >= staleBefore
+  );
 
   const mergeRows: MergeRow[] = jobs.map((job) => ({
     id: job.id,
