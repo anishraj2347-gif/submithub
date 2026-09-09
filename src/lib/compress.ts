@@ -25,6 +25,8 @@ export type CompressOptions = {
   maxHeight: number;
   /** JPEG quality for re-encoded images. */
   quality: number;
+  /** Convert to greyscale. Handwriting and printed text lose nothing by it. */
+  grayscale?: boolean;
 };
 
 // libvips keeps decoded images in a cache and spawns a worker per core. On a
@@ -240,7 +242,8 @@ export async function compressDocumentImages(
 
     let encoded: Buffer;
     try {
-      encoded = await input
+      const pipeline = opts.grayscale ? input.grayscale() : input;
+      encoded = await pipeline
         .resize({
           width: opts.maxWidth,
           height: opts.maxHeight,
