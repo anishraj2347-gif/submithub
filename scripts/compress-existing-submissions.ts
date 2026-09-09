@@ -6,6 +6,9 @@
  * Files are handled one at a time and replaced in place on Drive, so the same
  * file id keeps working and nothing downstream needs updating.
  *
+ * Re-encoding a JPEG always loses a little, so this is meant to be run once
+ * after a settings change, not repeatedly. Each run costs another generation.
+ *
  * Dry run by default; pass --apply to write.
  *
  *   DATABASE_URL="..." npx tsx scripts/compress-existing-submissions.ts

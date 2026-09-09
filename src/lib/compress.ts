@@ -39,7 +39,11 @@ sharp.concurrency(1);
 export const DEFAULT_COMPRESS: CompressOptions = {
   maxWidth: 1240,
   maxHeight: 1754,
-  quality: 72,
+  // Measured across the whole class document: q55 gives about a third less
+  // than q72 while keeping the screenshots of terminal output readable, which
+  // is the part being marked. Resolution is what legibility actually depends
+  // on, so that stays at ~150 DPI for an A4 page.
+  quality: 55,
 };
 
 export type CompressResult = {
